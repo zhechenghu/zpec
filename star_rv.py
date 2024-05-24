@@ -103,6 +103,15 @@ class StarRV:
         self.rv = popt[1]
         self.rv_err = np.sqrt(pcov[1, 1])
 
+        self.ccf_model_params_dict = {
+            "a": popt[0],
+            "mu": popt[1],
+            "sigma": popt[2],
+            "b": popt[3],
+            "c": popt[4],
+            "d": popt[5],
+        }
+
         self.ccf_model = gaussian_2ndpoly(self.vel_arr, *popt)
         return self.rv, self.rv_err
 
