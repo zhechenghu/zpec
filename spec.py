@@ -7,7 +7,9 @@ from scipy import interpolate
 from scipy.optimize import curve_fit
 from copy import deepcopy
 import emcee
+import os
 from . import ispec
+from .utils import SpecUtils
 
 #################################################################################
 ## --- iSpec directory -------------------------------------------------------------
@@ -307,3 +309,115 @@ class ModelSpec:
         self.spectrum["waveobs"] = spectrum_array[:, 0]
         self.spectrum["flux"] = spectrum_array[:, 1]
         return
+
+
+class SynthSpec:
+    def __init__(
+        self,
+        wave_range,
+        resolution,
+        teff,
+        logg,
+        meh,
+    ) -> None:
+        self.wave_range = wave_range
+        self.resolution = resolution
+        current_file_folder = os.path.dirname(os.path.abspath(__file__))
+        self.spectrum_data_path = f"{current_file_folder}/data/phoenix"
+
+        assert teff >= 2300 and teff <= 12000
+        assert logg >= 0.0 and logg <= 6.0
+        assert meh >= -4.0 and meh <= 0.5
+        self.teff = teff
+        self.logg = logg
+        self.meh = meh
+
+        self._teff_step = 100
+        self._teff_low = 2300
+        self._teff_high = 12000
+        self._teff_list = np.arange(self._teff_low, self._teff_high, self._teff_step)
+        self._logg_step = 0.5
+        self._logg_low = 0.0
+        self._logg_high = 6.0
+        self._logg_list = np.arange(self._logg_low, self._logg_high, self._logg_step)
+        self._meh_list = [-4.0, -3.0, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0]
+        self.hires_wave = None
+        self.hires_flux = None
+        self.lowres_wave = None
+        self.lowres_flux = None
+
+        return
+
+    def get_synth_spec(self, teff_grid, logg_grid, meh_grid):
+        with fits.open(
+            f'{self.spectrum_data_path}/lte{teff_grid:05d}-{logg_grid:.1f}{"+" if meh_grid >0.1 else "-"}{abs(meh_grid):.1f}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+        ) as hdu:
+            hires_flux = hdu[0].data
+        hires_wave = np.arange(3000, 10000, 0.1)
+        return hires_wave, hires_flux
+
+    def interpolator(self):
+        # find the nearest two teff, logg, meh
+        teff_idx1 = np.where(self._teff_list <= self.teff)[0][-1]
+        teff_1 = self._teff_list[teff_idx1]
+        teff_idx2 = np.where(self._teff_list > self.teff)[0][0]
+        teff_2 = self._teff_list[teff_idx2]
+        logg_idx1 = np.where(self._logg_list <= self.logg)[0][-1]
+        logg_1 = self._logg_list[logg_idx1]
+        logg_idx2 = np.where(self._logg_list > self.logg)[0][0]
+        logg_2 = self._logg_list[logg_idx2]
+        meh_idx1 = np.where(np.array(self._meh_list) <= self.meh)[0][-1]
+        meh_1 = self._meh_list[meh_idx1]
+        meh_idx2 = np.where(np.array(self._meh_list) > self.meh)[0][0]
+        meh_2 = self._meh_list[meh_idx2]
+
+        def combine_spec(flux1, flux2, weight1, weight2):
+            return flux1 * weight1 + flux2 * weight2
+
+        flux_dteff = []
+        for i, teff in enumerate([teff_1, teff_2]):
+            flux_dteff_dlogg = []
+            for j, logg in enumerate([logg_1, logg_2]):
+                flux_dteff_dlogg_dmeh = []
+                for k, meh in enumerate([meh_1, meh_2]):
+                    # idx_str = f"{teff:05d}-{logg:.1f}{"+" if meh >0.1 else "-"}{abs(meh):.1f}"
+                    wave, flux = self.get_synth_spec(teff, logg, meh)
+                    flux_dteff_dlogg_dmeh.append(flux)
+                weight_meh1 = (meh_2 - self.meh) / (meh_2 - meh_1)
+                weight_meh2 = 1 - weight_meh1
+                flux_dteff_dlogg.append(
+                    combine_spec(
+                        flux_dteff_dlogg_dmeh[0],
+                        flux_dteff_dlogg_dmeh[1],
+                        weight_meh1,
+                        weight_meh2,
+                    )
+                )
+            weight_logg1 = (logg_2 - self.logg) / (logg_2 - logg_1)
+            weight_logg2 = 1 - weight_logg1
+            flux_dteff.append(
+                combine_spec(
+                    flux_dteff_dlogg[0], flux_dteff_dlogg[1], weight_logg1, weight_logg2
+                )
+            )
+        weight_teff1 = (teff_2 - self.teff) / (teff_2 - teff_1)
+        weight_teff2 = 1 - weight_teff1
+        flux = combine_spec(flux_dteff[0], flux_dteff[1], weight_teff1, weight_teff2)
+        # since the wavelength are the different, we need to interpolate the flux
+        self.hires_wave = wave
+        self.hires_flux = flux
+        return wave, flux
+
+    def get_spec(self):
+        if self.hires_wave is None or self.hires_flux is None:
+            self.interpolator()
+
+        self.lowres_wave, self.lowres_flux, _, _ = SpecUtils.lower_reslution(
+            self.hires_wave,
+            self.hires_flux,
+            self.wave_range,
+            self.resolution,
+            padding=2,
+            save_padding=1,
+        )
+        return self.lowres_wave, self.lowres_flux
