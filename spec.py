@@ -276,20 +276,27 @@ class ObsSpec:
         ax.plot(self.spectrum["waveobs"], self.continuum_flux, **continuum_sty_kw)
         return
 
-    def plot_normalized_spectrum(self, ax: plt.Axes, flux_sty_kw: dict = {}):
+    def plot_normalized_spectrum(
+        self, ax: plt.Axes, rv_corr=None, flux_sty_kw: dict = {}
+    ):
+        if rv_corr is None:
+            wave = self.normalized_spectrum["waveobs"]
+        else:
+            c = 299792.458
+            wave = self.normalized_spectrum["waveobs"] * (1 + rv_corr / c)
         ax.plot(
-            self.normalized_spectrum["waveobs"],
+            wave,
             self.normalized_spectrum["flux"],
             **flux_sty_kw,
         )
         ax.fill_between(
-            self.normalized_spectrum["waveobs"],
+            wave,
             self.normalized_spectrum["flux"] - self.normalized_spectrum["err"],
             self.normalized_spectrum["flux"] + self.normalized_spectrum["err"],
             alpha=0.2,
             color=flux_sty_kw.get("color", "C0"),
         )
-        ax.set_title("Continuum normalization")
+        # ax.set_title("Continuum normalization")
         return
 
 
