@@ -27,20 +27,12 @@ class SpecUtils:
         """
         # os_factor = 1.0  # over sampling factor for the simulation
         # boundaries of each orders
-        mask = np.where(
-            (wave >= wave_range[0] - padding) & (wave <= wave_range[-1] + padding)
-        )[
-            0
-        ]  # chunk index
-        delta_lambda = np.median(
-            abs(wave[mask[0 : (len(mask) - 1)]] - wave[mask[1:]])
-        )  # samping size
-        sigma_lambda = (
-            np.median(wave[mask]) / r
-        )  # the change in lambda of two peaks, derived from Resolution = lambda/delta_lambda
-        sigma = (
-            sigma_lambda / delta_lambda / 2.35
-        )  # Assume that the psf is an gaussian, then 2.35 * sigma_psf = sigma_lambda
+        # fmt: off
+        mask = np.where((wave >= wave_range[0] - padding) & (wave <= wave_range[-1] + padding))[0]  # chunk index
+        delta_lambda = np.median(abs(wave[mask[0 : (len(mask) - 1)]] - wave[mask[1:]]))  # samping size
+        sigma_lambda = (np.median(wave[mask]) / r)  # the change in lambda of two peaks, derived from Resolution = lambda/delta_lambda
+        sigma = (sigma_lambda / delta_lambda / 2.35)  # Assume that the psf is an gaussian, then 2.35 * sigma_psf = sigma_lambda
+        # fmt: on
         # construct PSF
         # x_psf = np.arange(-15*3, 15*3, 1.0/os_factor)
         x_psf = np.arange(-15 * 3, 15 * 3, 1.0)
