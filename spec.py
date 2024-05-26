@@ -350,7 +350,7 @@ class SynthSpec:
 
     def get_synth_spec(self, teff_grid, logg_grid, meh_grid):
         with fits.open(
-            f'{self.spectrum_data_path}/lte{teff_grid:05d}-{logg_grid:.1f}{"+" if meh_grid >0.1 else "-"}{abs(meh_grid):.1f}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
+            f'{self.spectrum_data_path}/lte{teff_grid:05d}-{logg_grid:.2f}{"+" if meh_grid >0.1 else "-"}{abs(meh_grid):.1f}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
         ) as hdu:
             hires_flux = hdu[0].data
         hires_wave = np.arange(3000, 10000, 0.1)
@@ -404,9 +404,9 @@ class SynthSpec:
         weight_teff2 = 1 - weight_teff1
         flux = combine_spec(flux_dteff[0], flux_dteff[1], weight_teff1, weight_teff2)
         # since the wavelength are the different, we need to interpolate the flux
-        self.hires_wave = wave
+        self.hires_wave = wave / 10
         self.hires_flux = flux
-        return wave, flux
+        return self.hires_wave, self.hires_flux
 
     def get_spec(self):
         if self.hires_wave is None or self.hires_flux is None:
@@ -420,4 +420,21 @@ class SynthSpec:
             padding=2,
             save_padding=1,
         )
-        return self.lowres_wave, self.lowres_flux
+        current_file_folder = os.path.dirname(os.path.abspath(__file__))
+        temp_path = f"{current_file_folder}/data/temp/lowres_spec.txt"
+        np.savetxt(
+            temp_path,
+            np.array(
+                [self.lowres_wave, self.lowres_flux, np.zeros_like(self.lowres_wave)]
+            ).T,
+        )
+
+        obs_spec = ObsSpec(
+            spec_path=temp_path,
+            spectrum_type="obj",
+            spectrum_format="txt",
+            date_obs="20000101",
+            vel_corr=1.0,
+            vel_type="heliocentric",
+        )
+        return obs_spec
