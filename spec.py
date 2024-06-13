@@ -427,21 +427,27 @@ class SynthSpec:
             padding=2,
             save_padding=1,
         )
-        current_file_folder = os.path.dirname(os.path.abspath(__file__))
-        temp_path = f"{current_file_folder}/data/temp/lowres_spec.txt"
-        np.savetxt(
-            temp_path,
-            np.array(
-                [self.lowres_wave, self.lowres_flux, np.zeros_like(self.lowres_wave)]
-            ).T,
-        )
+        with tempfile.NamedTemporaryFile(delete=True, mode="w+t") as temp_file:
+            np.savetxt(
+                temp_file,
+                np.array(
+                    [
+                        self.lowres_wave,
+                        self.lowres_flux,
+                        np.zeros_like(self.lowres_wave),
+                    ]
+                ).T,
+            )
+            temp_file.flush()
+            temp_file.seek(0)
 
-        obs_spec = ObsSpec(
-            spec_path=temp_path,
-            spectrum_type="obj",
-            spectrum_format="txt",
-            date_obs="20000101",
-            vel_corr=1.0,
-            vel_type="heliocentric",
-        )
+            obs_spec = ObsSpec(
+                spec_path=temp_file.name,
+                spectrum_type="obj",
+                spectrum_format="txt",
+                date_obs="20000101",
+                vel_corr=1.0,
+                vel_type="heliocentric",
+                wave_range=self.wave_range,
+            )
         return obs_spec
