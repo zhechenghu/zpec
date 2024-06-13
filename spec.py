@@ -6,10 +6,10 @@ import numpy as np
 from scipy import interpolate
 from scipy.optimize import curve_fit
 from copy import deepcopy
-import emcee
 import os
 from . import ispec
 from .utils import SpecUtils
+import tempfile
 
 #################################################################################
 ## --- iSpec directory -------------------------------------------------------------
@@ -355,7 +355,7 @@ class SynthSpec:
 
         return
 
-    def get_synth_spec(self, teff_grid, logg_grid, meh_grid):
+    def _read_synth_spec(self, teff_grid, logg_grid, meh_grid):
         with fits.open(
             f'{self.spectrum_data_path}/lte{teff_grid:05d}-{logg_grid:.2f}{"+" if meh_grid >0.1 else "-"}{abs(meh_grid):.1f}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
         ) as hdu:
@@ -363,7 +363,7 @@ class SynthSpec:
         hires_wave = np.arange(3000, 10000, 0.1)
         return hires_wave, hires_flux
 
-    def interpolator(self):
+    def _interpolator(self):
         # find the nearest two teff, logg, meh
         teff_idx1 = np.where(self._teff_list <= self.teff)[0][-1]
         teff_1 = self._teff_list[teff_idx1]
@@ -388,7 +388,7 @@ class SynthSpec:
                 flux_dteff_dlogg_dmeh = []
                 for k, meh in enumerate([meh_1, meh_2]):
                     # idx_str = f"{teff:05d}-{logg:.1f}{"+" if meh >0.1 else "-"}{abs(meh):.1f}"
-                    wave, flux = self.get_synth_spec(teff, logg, meh)
+                    wave, flux = self._read_synth_spec(teff, logg, meh)
                     flux_dteff_dlogg_dmeh.append(flux)
                 weight_meh1 = (meh_2 - self.meh) / (meh_2 - meh_1)
                 weight_meh2 = 1 - weight_meh1
@@ -451,3 +451,28 @@ class SynthSpec:
                 wave_range=self.wave_range,
             )
         return obs_spec
+
+
+class SynthBinarySpec:
+    def __init__(
+        self,
+        wave_range,
+        resolution,
+        teff1,
+        logg1,
+        meh1,
+        teff2,
+        logg2,
+        meh2,
+        flux_ratio,
+        rv1=0,
+        rv2=0,
+    ) -> None:
+        self.synthspec1 = SynthSpec(wave_range, resolution, teff1, logg1, meh1, rv=rv1)
+        self.synthspec2 = SynthSpec(wave_range, resolution, teff2, logg2, meh2, rv=rv2)
+        self.flux_ratio = flux_ratio
+        return
+
+    def get_spec(self):
+        self.obs_spec1 = self.synthspec1.get_spec()
+        self.obs_spec2 = self.synthspec2.get_spec()
