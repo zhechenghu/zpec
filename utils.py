@@ -1,9 +1,14 @@
 import numpy as np
+from zpec.path import _PHOENIX_DATA_DIR
+import os
+import re
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class SpecUtils:
     @staticmethod
-    def lower_reslution(
+    def lower_resolution(
         wave,
         flux,
         wave_range,
@@ -49,3 +54,52 @@ class SpecUtils:
         synspec = spec_convolved[final_mask]
 
         return synwave, synspec, x_psf, psf
+
+
+class PlotUtils:
+    @staticmethod
+    def _parse_file_name(file_name):
+        pattern = r"lte(\d+)-([-+]?\d+\.\d+)([-+]\d+\.\d+)"
+        match = re.search(pattern, file_name)
+        if match:
+            teff = int(match.group(1))
+            logg = float(match.group(2))
+            metallicity = float(match.group(3))
+            return teff, logg, metallicity
+        else:
+            return None, None, None
+
+    @staticmethod
+    def _generate_params_dataframe():
+        file_names = os.listdir(_PHOENIX_DATA_DIR)
+        # Create a list to store the parsed data
+        data = []
+        for file_name in file_names:
+            teff, logg, metallicity = PlotUtils._parse_file_name(file_name)
+            if teff is not None and logg is not None and metallicity is not None:
+                data.append((teff, logg, metallicity, file_name))
+
+        # Create a DataFrame
+        df = pd.DataFrame(data, columns=["Teff", "logg", "feh", "File Name"])
+        return df
+
+    @staticmethod
+    def plot_params_range(plot_save_path):
+        df = PlotUtils._generate_params_dataframe()
+        # plot a corner plot
+        fig, axes = plt.subplots(2, 2, figsize=(5, 5), dpi=300)
+        ax1 = axes[0, 0]
+        ax1.scatter(df["Teff"], df["logg"], s=1)
+        ax1.set_xticks([])
+        ax1.set_ylabel("logg")
+        ax2 = axes[1, 0]
+        ax2.scatter(df["Teff"], df["feh"], s=1)
+        ax2.set_xlabel("T_eff (k)")
+        ax2.set_ylabel("[Fe/H]")
+        ax3 = axes[1, 1]
+        ax3.scatter(df["logg"], df["feh"], s=1)
+        ax3.set_yticks([])
+        ax3.set_xlabel("logg")
+        axes[0, 1].axis("off")
+        fig.tight_layout()
+        plt.savefig(plot_save_path)
