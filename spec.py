@@ -205,10 +205,12 @@ class BaseSpec:
             self.spectrum["err"],
         )
         new_err = f(new_wave)
-        self.spectrum = np.array(
-            [new_wave, new_flux, new_err],
-            dtype=[("waveobs", "f8"), ("flux", "f8"), ("err", "f8")],
-        )
+        spectrum_array = np.array([new_wave, new_flux, new_err]).T
+        dtype = [("waveobs", "f8"), ("flux", "f8"), ("err", "f8")]
+        self.spectrum = np.zeros(spectrum_array.shape[0], dtype=dtype)
+        self.spectrum["waveobs"] = spectrum_array[:, 0]
+        self.spectrum["flux"] = spectrum_array[:, 1]
+        self.spectrum["err"] = spectrum_array[:, 2]
         return
 
     def to_pkl(self, pkl_path: str) -> None:

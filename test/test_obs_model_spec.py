@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from zpec.spec import ObsSpec
-from zpec import _TEST_DATA_DIR
+from zpec.spec import ObsSpec, ModelSpec
+from zpec.path import _TEST_DATA_DIR
 import os
 from pytest import approx
 
@@ -23,6 +23,10 @@ class TestObsSpec:
     txt_file = os.path.join(
         _TEST_DATA_DIR,
         "Bernhard_2023-11-05T05:49:40.010.txt",
+    )
+    model_file = os.path.join(
+        _TEST_DATA_DIR,
+        "bernhard_template_GTC_04900-4.50+0.5.txt",
     )
 
     def test_txt_loading(self):
@@ -133,3 +137,34 @@ if __name__ == "__main__":
     plt.close(fig)
     ##### end test flatten spectrum #####
     #####################################
+
+    ###########################################
+    ##### start test interpolate spectrum #####
+    model_spec_base = ModelSpec(TestObsSpec.model_file, wave_range=(590, 630))
+    model_spec = ModelSpec(TestObsSpec.model_file, wave_range=(590, 630))
+    new_wave = model_spec_base.spectrum["waveobs"] + np.random.normal(
+        0, 0.1, len(model_spec_base.spectrum["waveobs"])
+    )
+    new_wave_mask = (new_wave > np.min(model_spec_base.spectrum["waveobs"])) & (
+        new_wave < np.max(model_spec_base.spectrum["waveobs"])
+    )
+    new_wave = np.sort(new_wave[new_wave_mask])
+    model_spec.interpolate_new_wave(new_wave)
+    fig, ax = plt.subplots(figsize=(10, 5), dpi=300)
+    model_spec.plot_spectrum(ax=ax, flux_sty_kw={"alpha": 0.2, "label": "interploated"})
+    model_spec_base.plot_spectrum(
+        ax=ax, flux_sty_kw={"alpha": 0.2, "label": "original"}
+    )
+    # froze the xlim and ylim
+    ax.set_xlim(ax.get_xlim())
+    ax.set_ylim(ax.get_ylim())
+
+    ax.set_xlim(590, 630)
+    ax.set_xlabel("Wavelength (Angstrom)")
+    ax.set_ylabel("Flux")
+    ax.set_title("Test Flattened spectrum")
+    ax.legend()
+    fig.savefig(os.path.join(result_dir_path, "test_interp_spectrum.png"))
+    plt.close(fig)
+    ##### end test interpolate spectrum #####
+    #########################################
