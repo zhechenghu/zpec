@@ -410,6 +410,7 @@ class ModelSpec(BaseSpec):
         wave_range=None,
         rv=0.0,
     ) -> None:
+        self.wave_range = wave_range
         if txt_spec_file is not None:
             self._process_txt(txt_spec_file)
         else:
