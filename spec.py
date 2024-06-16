@@ -567,3 +567,116 @@ class SynthSpec:
         )
 
         return model_spec
+
+
+class ModelBinarySpec:
+    """
+    Reads two spectra and combines them into a single object.
+    Currently only works for the synthetic spectra, because the error propagation is not implemented.
+    The unnormalized spectra are not implemented as well.
+    """
+
+    def __init__(self, model_spec1: ModelSpec, model_spec2: ModelSpec, flux_ratio=1.0):
+        self.model_spec1 = deepcopy(model_spec1)
+        self.model_spec2 = deepcopy(model_spec2)
+        assert len(model_spec1.spectrum["waveobs"]) == len(
+            model_spec2.spectrum["waveobs"]
+        )
+        assert (
+            np.abs(
+                np.min(model_spec1.spectrum["waveobs"])
+                - np.min(model_spec2.spectrum["waveobs"])
+            )
+            < 1e-6
+        )
+        assert (
+            np.abs(
+                np.max(model_spec1.spectrum["waveobs"])
+                - np.max(model_spec2.spectrum["waveobs"])
+            )
+            < 1e-6
+        )
+        self.flux_ratio = flux_ratio
+        self.normalized_spectrum = None
+        return
+
+    def _add_two_norm_spec(self):
+        flux_fraction_1 = 1 / (1 + self.flux_ratio)
+        flux_fraction_2 = self.flux_ratio / (1 + self.flux_ratio)
+        self.normalized_spectrum = np.copy(self.model_spec1.normalized_spectrum)
+        self.normalized_spectrum["flux"] = (
+            self.model_spec1.normalized_spectrum["flux"] * flux_fraction_1
+            + self.model_spec2.normalized_spectrum["flux"] * flux_fraction_2
+        )
+        return
+
+    def normalize_whole_spectrum(self):
+        self.model_spec1.normalize_whole_spectrum()
+        self.model_spec2.normalize_whole_spectrum()
+        # here I assume that the normalizations are perfect
+        # so I normalize the fluxes with the flux ratio
+        self._add_two_norm_spec()
+        return
+
+    def shift_spec(self, v1, v2):
+        base_wave = self.model_spec1.normalized_spectrum[
+            "waveobs"
+        ]  # prepare for interpolation
+        self.model_spec1.shift_spec(v1)
+        self.model_spec2.shift_spec(v2)
+        # only keep the overlapping part, for the interpolation
+        wave_min = np.max(
+            [
+                np.min(self.model_spec1.normalized_spectrum["waveobs"]),
+                np.min(self.model_spec2.normalized_spectrum["waveobs"]),
+            ]
+        )
+        wave_max = np.min(
+            [
+                np.max(self.model_spec1.normalized_spectrum["waveobs"]),
+                np.max(self.model_spec2.normalized_spectrum["waveobs"]),
+            ]
+        )
+        base_wave = base_wave[(base_wave >= wave_min) & (base_wave <= wave_max)]
+        # as the shifted wavelengths are different for the two spectra, we need to
+        # 1. interpolate the spectra
+        self.model_spec1.interpolate_new_wave(base_wave)
+        self.model_spec2.interpolate_new_wave(base_wave)
+        # then we can add them together with the flux ratio
+        self._add_two_norm_spec()
+        return
+
+    def plot_normalized_spectrum(self, ax: plt.Axes, flux_sty_kw: dict = {}):
+        ax.plot(
+            self.normalized_spectrum["waveobs"],
+            self.normalized_spectrum["flux"],
+            **flux_sty_kw,
+        )
+        return
+
+
+class SynthBinarySpec:
+    def __init__(
+        self,
+        wave_range,
+        resolution,
+        teff1,
+        logg1,
+        feh1,
+        teff2,
+        logg2,
+        feh2,
+        flux_ratio,
+    ) -> None:
+        self.synthspec1 = SynthSpec(wave_range, resolution, teff1, logg1, feh1)
+        self.synthspec2 = SynthSpec(wave_range, resolution, teff2, logg2, feh2)
+        self.flux_ratio = flux_ratio
+        return
+
+    def get_spec(self):
+        self.obs_spec1 = self.synthspec1.get_spec()
+        self.obs_spec2 = self.synthspec2.get_spec()
+        obs_binary_spec = ModelBinarySpec(
+            self.obs_spec1, self.obs_spec2, self.flux_ratio
+        )
+        return obs_binary_spec
