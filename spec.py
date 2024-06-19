@@ -213,11 +213,6 @@ class BaseSpec:
         self.spectrum["err"] = spectrum_array[:, 2]
         return
 
-    def to_pkl(self, pkl_path: str) -> None:
-        with open(pkl_path, "wb") as f:
-            pickle.dump(self, f)
-        return
-
     def plot_spectrum(self, ax: plt.Axes, rv_corr=None, flux_sty_kw: dict = {}):
         if rv_corr is None:
             wave = self.spectrum["waveobs"]
@@ -331,12 +326,18 @@ class ObsSpec(BaseSpec):
     def _process_pkl(self, pkl_path: str, wave_range) -> None:
         with open(pkl_path, "rb") as f:
             data = pickle.load(f)
-        self.errfac = data.errfac
-        self.DATE_OBS = data.DATE_OBS
-        self.VEL_CORR = data.VEL_CORR
-        self.VEL_TYPE = data.VEL_TYPE
-        self.wave_range = wave_range
-        self.specturm = data.spectrum
+        # self.errfac = data.errfac
+        # self.DATE_OBS = data.DATE_OBS
+        # self.VEL_CORR = data.VEL_CORR
+        # self.VEL_TYPE = data.VEL_TYPE
+        # self.wave_range = wave_range
+        # self.spectrum = np.copy(data.spectrum)
+        self.errfac = data["errfac"]
+        self.DATE_OBS = data["DATE_OBS"]
+        self.VEL_CORR = data["VEL_CORR"]
+        self.VEL_TYPE = data["VEL_TYPE"]
+        self.wave_range = data["wave_range"]
+        self.spectrum = np.copy(data["spectrum"])
         self.spectrum = self.restrict_wave_range(
             self.spectrum["waveobs"],
             self.spectrum["flux"],
@@ -393,6 +394,19 @@ class ObsSpec(BaseSpec):
         if self.VEL_TYPE != "earthentric":
             self.spectrum["waveobs"] /= self.VEL_CORR
             self.VEL_TYPE = "earthentric"
+        return
+
+    def to_pkl(self, pkl_path: str) -> None:
+        save_data = {
+            "spectrum": np.copy(self.spectrum),
+            "errfac": np.copy(self.errfac),
+            "DATE_OBS": self.DATE_OBS,
+            "VEL_CORR": self.VEL_CORR,
+            "VEL_TYPE": self.VEL_TYPE,
+            "wave_range": np.copy(self.wave_range),
+        }
+        with open(pkl_path, "wb") as f:
+            pickle.dump(save_data, f)
         return
 
 
@@ -637,7 +651,7 @@ class ModelBinarySpec:
                 np.max(self.model_spec2.normalized_spectrum["waveobs"]),
             ]
         )
-        base_wave = base_wave[(base_wave >= wave_min) & (base_wave <= wave_max)]
+        base_wave = base_wave[(base_wave > wave_min) & (base_wave < wave_max)]
         # as the shifted wavelengths are different for the two spectra, we need to
         # 1. interpolate the spectra
         self.model_spec1.interpolate_new_wave(base_wave)
