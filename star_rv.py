@@ -41,8 +41,8 @@ class StarRV:
             float: The determined radial velocity.
         """
         base_spec = self.observed_spec_base.normalized_spectrum
-        wave_range = (np.min(base_spec["waveobs"]), np.max(base_spec["waveobs"]))
-        print(wave_range)
+        # wave_range = (np.min(base_spec["waveobs"]), np.max(base_spec["waveobs"]))
+        # print(wave_range)
         target_spec = self.observed_spec_target.normalized_spectrum
         ccf_list = []
         ccf_err_list = []
