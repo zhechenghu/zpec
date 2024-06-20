@@ -452,6 +452,7 @@ class SynthSpec:
         teff,
         logg,
         feh,
+        alpha=0,
     ) -> None:
         self.wave_range_nm = wave_range_nm
         self.resolution = resolution
@@ -460,6 +461,7 @@ class SynthSpec:
         assert teff >= 2300 and teff <= 12000
         assert logg >= 0.0 and logg <= 6.0
         assert feh >= -4.0 and feh <= 1.0
+        assert alpha >= -0.2 and alpha <= 1.2
         self.teff = teff
         self.logg = logg
         self.feh = feh
@@ -476,10 +478,16 @@ class SynthSpec:
 
         return
 
-    def _read_synth_spec(self, teff_grid, logg_grid, meh_grid):
-        with fits.open(
-            f'{self.spectrum_data_path}/lte{teff_grid:05d}-{logg_grid:.2f}{"+" if meh_grid >0.1 else "-"}{abs(meh_grid):.1f}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits'
-        ) as hdu:
+    def _read_synth_spec(self, teff_grid, logg_grid, feh_grid, alpha_grid=0.0):
+        teff_str = f"{teff_grid:05d}"
+        logg_str = f"{logg_grid:.2f}"
+        feh_str = f'{"+" if feh_grid >0.1 else "-"}{abs(feh_grid):.1f}'
+        if np.abs(alpha_grid) < 0.01:
+            path = f"{self.spectrum_data_path}/lte{teff_str}-{logg_str}{feh_str}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
+        else:
+            alpha_str = f'{"+" if alpha_grid >0.1 else "-"}{abs(alpha_grid):.1f}'
+            path = f"{self.spectrum_data_path}/lte{teff_str}-{logg_str}{feh_str}.Alpha={alpha_str}.PHOENIX-ACES-AGSS-COND-2011-HiRes.fits"
+        with fits.open(path) as hdu:
             hires_flux = hdu[0].data
         hires_wave = np.arange(3000, 10000, 0.1)
         return hires_wave, hires_flux
@@ -562,6 +570,7 @@ class SynthSpec:
         return self.hires_wave_nm, self.hires_flux
 
     def get_spec(self):
+        # TODO: inplement alpha enhancement
         if self.hires_wave_nm is None or self.hires_flux is None:
             self._interpolator()
 
