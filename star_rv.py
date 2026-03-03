@@ -24,6 +24,7 @@ class StarRV:
                 # we only flatten the observed spectrum
                 # because the base spectrum could be a template,
                 # which do not contain any telluric lines
+                self.observed_spec_base.flatten_spectrum(ignore_wave_range)
                 self.observed_spec_target.flatten_spectrum(ignore_wave_range)
         self.vel_arr = np.arange(vel_range[0], vel_range[1], d_vel)
         return
@@ -87,6 +88,9 @@ class StarRV:
         def gaussian_2ndpoly(x, a, mu, sigma, b, c, d):
             return a * np.exp(-0.5 * ((x - mu) / sigma) ** 2) + b * x**2 + c * x + d
 
+        def poly(x, b, c, d):
+            return b * x**2 + c * x + d
+
         def get_chi2(theta, x, y, yerr):
             a, mu, sigma, b, c, d = theta
             model = a * np.exp(-0.5 * ((x - mu) / sigma) ** 2) + b * x**2 + c * x + d
@@ -113,10 +117,12 @@ class StarRV:
         }
 
         self.ccf_model = gaussian_2ndpoly(self.vel_arr, *popt)
+        self.ccf_base = poly(self.vel_arr, popt[3], popt[4], popt[5])
         return self.rv, self.rv_err
 
     def determine_radial_velocity(
         self,
+        fit_ccf: bool = True,
     ):
         if self.observed_spec_base.normalized_spectrum is None:
             self.observed_spec_base.normalize_whole_spectrum()
@@ -125,8 +131,11 @@ class StarRV:
 
         # The spectrum should already in heliocentric frame
         self.get_ccf()
-        self.fit_ccf()
-        return self.rv, self.rv_err
+        if fit_ccf:
+            self.fit_ccf()
+            return self.rv, self.rv_err
+        else:
+            return None, None
 
     def plot_ccf(self, ax: plt.Axes, ccf_sty_kw: dict = {}):
         ax.plot(self.vel_arr, self.ccf, **ccf_sty_kw)
